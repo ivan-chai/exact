@@ -4,7 +4,7 @@ In this file you will an outline of how to reproduce the results of the paper.
 See [EXACT: How to Train Your Accuracy (2022)](https://arxiv.org/pdf/2205.09615.pdf) for more details.
 
 The short version of the paper was presented at the [TAG in Machine Learning
-ICML Workshop (2022)](https://www.tagds.com/events/conferences/tag-in-machine-learning).
+ICML Workshop (2022)](https://icml.cc/virtual/2022/workshop/13447).
 
 ## UCI Datasets
 
