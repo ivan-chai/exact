@@ -1,0 +1,17 @@
+model_params:
+  embedder_params:
+    head_batchnorm: true
+trainer_params:
+  classifier_optimizer_params:
+    _hopt:
+      weight_decay:
+        distribution: log_uniform_values
+        min: 0.0001
+        max: 1.0
+criterion_params:
+  xent_weight: 0.0
+  hinge_weight: 1.0
+  _hopt:
+    hinge_margin:
+      min: 0.0
+      max: 10.0

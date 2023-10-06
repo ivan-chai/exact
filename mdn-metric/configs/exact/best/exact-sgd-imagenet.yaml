@@ -1,0 +1,8 @@
+seed:
+  value: 3943
+trainer_params.optimizer_params.lr:
+  value: 0.5
+trainer_params.variance_scheduler_params.min_variance:
+  value: 0.00271844584348665
+criterion_params.exact_margin:
+  value: 3.2500433023243023

@@ -1,0 +1,2 @@
+trainer_params.gradient_clipping:
+  value: 0.1

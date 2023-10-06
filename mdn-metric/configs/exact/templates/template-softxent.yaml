@@ -1,0 +1,6 @@
+criterion_params:
+  xent_weight: 1.0
+  _hopt:
+    xent_smoothing:
+      min: 0.0
+      max: 1.0

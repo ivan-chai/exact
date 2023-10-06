@@ -1,0 +1,4 @@
+trainer_params.gradient_clipping:
+  value: 0.1
+criterion_params.hinge_margin:
+  value: 10.0

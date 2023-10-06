@@ -1,0 +1,3 @@
+criterion_params:
+  xent_weight: 0.0
+  reloss_weight: 1.0

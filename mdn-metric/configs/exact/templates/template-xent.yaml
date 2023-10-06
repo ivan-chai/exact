@@ -1,0 +1,2 @@
+criterion_params:
+  xent_weight: 1.0

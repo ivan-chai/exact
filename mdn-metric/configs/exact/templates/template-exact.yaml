@@ -1,0 +1,26 @@
+model_params:
+  classifier_params:
+    use_variance: true
+    freeze_variance: true
+    initial_variance: 100.0
+trainer_params:
+  gradient_clipping: null
+  _hopt:
+    gradient_clipping:
+      values: [null]
+  use_gradient_normalizer: true
+  variance_scheduler_type: exponential
+  variance_scheduler_params:
+    _hopt:
+      min_variance:
+        distribution: log_uniform_values
+        min: 0.0001
+        max: 1.0
+criterion_params:
+  xent_weight: 0.0
+  exact_weight: 1.0
+  logits_batchnorm: true
+  _hopt:
+    exact_margin:
+      min: 0.0
+      max: 10.0

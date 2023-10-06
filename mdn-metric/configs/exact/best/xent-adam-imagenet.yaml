@@ -1,0 +1,4 @@
+seed:
+  value: 15918
+trainer_params.gradient_clipping:
+  value: 1

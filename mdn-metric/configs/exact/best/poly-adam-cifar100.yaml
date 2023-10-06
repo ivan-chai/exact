@@ -1,0 +1,8 @@
+model_params.classifier_params.initial_variance:
+  value: 1.0
+seed:
+  value: 37878
+trainer_params.gradient_clipping:
+  value: 5.0
+trainer_params.variance_scheduler_params.min_variance:
+  value: 0.1

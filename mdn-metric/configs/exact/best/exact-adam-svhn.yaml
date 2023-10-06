@@ -1,0 +1,4 @@
+trainer_params.variance_scheduler_params.min_variance:
+  value: 1.0
+criterion_params.exact_margin:
+  value: 10.0

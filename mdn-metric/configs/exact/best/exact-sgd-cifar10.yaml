@@ -1,0 +1,6 @@
+trainer_params.optimizer_params.lr:
+  value: 1.0
+trainer_params.variance_scheduler_params.min_variance:
+  value: 1.0
+criterion_params.exact_margin:
+  value: 0.5

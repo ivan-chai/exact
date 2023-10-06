@@ -1,0 +1,6 @@
+criterion_params.xent_smoothing:
+  value: 0.02820287978494551
+seed:
+  value: 35550
+trainer_params.gradient_clipping:
+  value: 10

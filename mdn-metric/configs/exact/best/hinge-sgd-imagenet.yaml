@@ -1,0 +1,8 @@
+seed:
+  value: 43132
+trainer_params.gradient_clipping:
+  value: 10
+trainer_params.optimizer_params.lr:
+  value: 0.05
+criterion_params.hinge_margin:
+  value: 1

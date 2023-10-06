@@ -1,0 +1,39 @@
+sgd:
+  trainer_params:
+    optimizer_type: sgd
+    optimizer_params:
+      weight_decay: 0.0001
+      _hopt:
+        lr:
+          distribution: log_uniform_values
+          min: 0.001
+          max: 1.0
+adam:
+  trainer_params:
+    optimizer_type: adam
+    optimizer_params:
+      weight_decay: 0.0001
+      lr: 0.001
+  hopt_backend: wandb-grid
+  _hopt_remove:  # Don't tune hopt except LR (copy from SGD).
+    - model_params.classifier_params.initial_variance
+    - trainer_params.variance_scheduler_params.min_variance
+    - trainer_params.classifier_optimizer_params.weight_decay
+    - trainer_params.gradient_clipping
+    - criterion_params.exact_margin
+    - criterion_params.hinge_margin
+asam:
+  trainer_params:
+    optimizer_type: sam
+    optimizer_params:
+      rho: 2.0
+      base_type: sgd
+      base_params:
+        weight_decay: 0.0001
+  _hopt_remove:  # Don't tune hopt (copy from SGD).
+    - model_params.classifier_params.initial_variance
+    - trainer_params.variance_scheduler_params.min_variance
+    - trainer_params.classifier_optimizer_params.weight_decay
+    - trainer_params.gradient_clipping
+    - criterion_params.exact_margin
+    - criterion_params.hinge_margin

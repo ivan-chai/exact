@@ -1,0 +1,33 @@
+num_evaluation_seeds: 5
+hopt_backend: wandb-random
+hopt_params:
+  dataset_params:
+    validation_fold: 0
+    num_validation_folds: 5
+  trainer_params:
+    num_epochs: 150
+    selection_dataset: valid
+dataset_params:
+  samples_per_class: null
+  add_verification_testsets: false
+model_params:
+  embedder_params:
+    pretrained: false
+    disable_head: true
+    head_batchnorm: false
+    head_normalize: false
+  scorer_type: l2
+metrics_params:
+  test_classification_metrics:
+  - type: accuracy
+trainer_params:
+  _hopt:
+    gradient_clipping:
+      distribution: log_uniform_values
+      min: 0.01
+      max: 10.0
+  selection_metric: accuracy01
+  selection_minimize: false
+  scheduler_type: exponential
+criterion_params:
+  exact_sample_size: 16

@@ -1,0 +1,7 @@
+criterion_params:
+  xent_weight: 0.0
+  hinge_weight: 1.0
+  _hopt:
+    hinge_margin:
+      min: 0.0
+      max: 10.0

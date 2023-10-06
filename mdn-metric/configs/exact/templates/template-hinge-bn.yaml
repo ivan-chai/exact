@@ -1,0 +1,8 @@
+criterion_params:
+  xent_weight: 0.0
+  hinge_weight: 1.0
+  logits_batchnorm: true
+  _hopt:
+    hinge_margin:
+      min: 0.0
+      max: 10.0

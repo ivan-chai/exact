@@ -1,0 +1,3 @@
+criterion_params:
+  xent_weight: 1.0
+  logits_batchnorm: true

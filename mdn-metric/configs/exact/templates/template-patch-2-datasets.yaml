@@ -1,0 +1,85 @@
+mnist:
+  dataset_params:
+    name: mnist
+    transform_params:
+      image_size: 28
+    augmenter_params:
+      random_flip_probability: 0.0
+      translate_ratios: [ 0.2, 0.2 ]
+      rotation_max_angle: 20
+  model_params:
+    embedder_params:
+      model_type: vgg_m3
+    distribution_params:
+      dim: 176
+  trainer_params:
+    num_epochs: 150
+svhn:
+  dataset_params:
+    name: svhn
+    transform_params:
+      image_size: 32
+    augmenter_params:
+      random_flip_probability: 0.0
+      autoaug: cifar10
+  model_params:
+    embedder_params:
+      model_type: wide_resnet16_8
+    distribution_params:
+      dim: 512
+  trainer_params:
+    num_epochs: 150
+cifar10:
+  dataset_params:
+    name: cifar10
+    transform_params:
+      image_size: 32
+    augmenter_params:
+      autoaug: cifar10
+  model_params:
+    embedder_params:
+      model_type: wide_resnet28_10
+    distribution_params:
+      dim: 640
+  trainer_params:
+    num_epochs: 500
+cifar100:
+  dataset_params:
+    name: cifar100
+    transform_params:
+      image_size: 32
+    augmenter_params:
+      autoaug: cifar10
+  model_params:
+    embedder_params:
+      model_type: wide_resnet28_10
+    distribution_params:
+      dim: 640
+  trainer_params:
+    num_epochs: 500
+imagenet:
+  hopt_params:
+    trainer_params:
+      num_epochs: 25
+  dataset_params:
+    name: imagenet
+    batch_size: 128
+    transform_params:
+      image_size: 256
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]
+    augmenter_params:
+      random_crop_scale: [0.75, 1.0]
+  model_params:
+    embedder_params:
+      model_type: resnet50
+    distribution_params:
+      dim: 2048
+  trainer_params:
+    num_epochs: 25
+  criterion_params:
+    exact_truncated: true
+    exact_robust_dims: 128
+    exact_sample_size: 256
+    #exact_sample_size: 8192  # Alternative set.
+    #exact_robust_dims: 32  # Alternative set.
