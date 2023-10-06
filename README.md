@@ -1,7 +1,7 @@
 # EXACT: How to Train Your Accuracy
 In this file you will an outline of how to reproduce the results of the paper.
 
-It is the official implementation, based on the [archive code](https://github.com/tinkoff-ai/exact).
+#### ⚠️ This is an official and supported fork of the [original](https://github.com/tinkoff-ai/exact) EXACT implementation. The original repository is on freeze and will not be update further.
 
 See [EXACT: How to Train Your Accuracy (2022)](https://arxiv.org/pdf/2205.09615.pdf) for more details.
 
