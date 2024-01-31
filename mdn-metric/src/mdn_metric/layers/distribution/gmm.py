@@ -196,13 +196,14 @@ class GMMDistribution(DistributionBase):
         log_probs = torch.zeros_like(mean[..., 0])
         return self.pack_parameters({"log_probs": log_probs, "mean": mean, "covariance": covariance})
 
-    def sample(self, parameters, size=None):
+    def sample(self, parameters, size=None, temperature=1):
         """Sample from distributions.
 
         Args:
             parameters: Distribution parameters with shape (..., K).
             size: Sample size (output shape without dimension). Parameters must be broadcastable to the given size.
               If not provided, output shape will be consistent with parameters.
+            temperature: Parameter controlling diversity.
 
         Returns:
             Tuple of:
@@ -214,6 +215,9 @@ class GMMDistribution(DistributionBase):
         parameters = parameters.reshape(list(parameters.shape[:-1]) + [1] * (len(size) - len(parameters.shape[:-1])) + [parameters.shape[-1]])
         c = self._config["components"]
         log_probs, means, hidden_vars = self.split_parameters(parameters)  # (..., C), (..., C, D), (..., C, D).
+        if temperature != 1:
+            log_probs = log_probs / temperature
+            log_probs = log_probs - torch.logsumexp(log_probs, dim=-1, keepdim=True)
 
         # Sample components.
         probs = log_probs.exp().broadcast_to(list(size) + [c])  # (..., C).
@@ -227,6 +231,8 @@ class GMMDistribution(DistributionBase):
         # Sample from components.
         normal = torch.randn(*(list(size) + [self.dim]), dtype=parameters.dtype, device=parameters.device)  # (..., D).
         stds = self._parametrization.positive(hidden_vars).sqrt()  # (..., D).
+        if temperature != 1:
+            stds = stds * math.sqrt(temperature)
         samples = normal * stds + means  # (..., D).
         return samples, components
 

@@ -80,13 +80,14 @@ class DistributionBase(ABC):
         pass
 
     @abstractmethod
-    def sample(self, parameters, size=None):
+    def sample(self, parameters, size=None, temperature=1):
         """Sample from distributions.
 
         Args:
             parameters: Distribution parameters with shape (..., K).
             size: Sample size (output shape without dimension). Parameters must be broadcastable to the given size.
               If not provided, output shape will be consistent with parameters.
+            temperature: Parameter controlling diversity.
 
         Returns:
             Tuple of:
