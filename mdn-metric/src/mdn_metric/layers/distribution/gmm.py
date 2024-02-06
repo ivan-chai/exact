@@ -139,7 +139,7 @@ class GMMDistribution(DistributionBase):
             hidden_vars = parameters[..., means_offset + c * dim:].reshape(*(dim_prefix + [c, -1]))
 
         if normalize:
-            log_probs = scaled_log_probs - torch.logsumexp(scaled_log_probs, dim=-1, keepdim=True)
+            log_probs = scaled_log_probs - torch.logsumexp(scaled_log_probs, dim=-1, keepdim=True) if c > 1 else scaled_log_probs
             means = self._normalize(means)
             return log_probs, means, hidden_vars
         else:
@@ -215,18 +215,25 @@ class GMMDistribution(DistributionBase):
         parameters = parameters.reshape(list(parameters.shape[:-1]) + [1] * (len(size) - len(parameters.shape[:-1])) + [parameters.shape[-1]])
         c = self._config["components"]
         log_probs, means, hidden_vars = self.split_parameters(parameters)  # (..., C), (..., C, D), (..., C, D).
-        if temperature != 1:
-            log_probs = log_probs / temperature
-            log_probs = log_probs - torch.logsumexp(log_probs, dim=-1, keepdim=True)
+        if c > 1:
+            if temperature != 1:
+                log_probs = log_probs / temperature
+                log_probs = log_probs - torch.logsumexp(log_probs, dim=-1, keepdim=True)
 
-        # Sample components.
-        probs = log_probs.exp().broadcast_to(list(size) + [c])  # (..., C).
-        components = torch.multinomial(probs.reshape(-1, c), 1).reshape(*size)  # (...).
-        broad_components = components.unsqueeze(-1).unsqueeze(-1).broadcast_to(list(size) + [1, self.dim])  # (..., 1, D).
-        means = means.broadcast_to(list(size) + [c, self.dim])
-        means = torch.gather(means, -2, broad_components).squeeze(-2)  # (..., D).
-        hidden_vars = hidden_vars.broadcast_to(list(size) + [c, self.dim])
-        hidden_vars = torch.gather(hidden_vars, -2, broad_components).squeeze(-2)  # (..., D).
+            # Sample components.
+            probs = log_probs.exp().broadcast_to(list(size) + [c])  # (..., C).
+            components = torch.multinomial(probs.reshape(-1, c), 1).reshape(*size)  # (...).
+            broad_components = components.unsqueeze(-1).unsqueeze(-1).broadcast_to(list(size) + [1, self.dim])  # (..., 1, D).
+            means = means.broadcast_to(list(size) + [c, self.dim])
+            means = torch.gather(means, -2, broad_components).squeeze(-2)  # (..., D).
+            hidden_vars = hidden_vars.broadcast_to(list(size) + [c, self.dim])
+            hidden_vars = torch.gather(hidden_vars, -2, broad_components).squeeze(-2)  # (..., D).
+        else:
+            components = torch.zeros(parameters.shape[:-1], dtype=torch.long, device=parameters.device)
+            assert means.shape[-2] == 1
+            means = means.squeeze(-2)
+            assert hidden_vars.shape[-2] == 1
+            hidden_vars = hidden_vars.squeeze(-2)
 
         # Sample from components.
         normal = torch.randn(*(list(size) + [self.dim]), dtype=parameters.dtype, device=parameters.device)  # (..., D).
