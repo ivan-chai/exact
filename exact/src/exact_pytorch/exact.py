@@ -28,13 +28,13 @@ class EXACTLoss(torch.nn.Module):
         self._disable_batch_norm = disable_batch_norm
         self._margin = margin
 
-    def __call__(self, logits, labels, std=None):
+    def __call__(self, logits, labels, temperature=None):
         """Compute loss.
 
         Args:
             logits: Logits tensor with shape (..., C).
             labels: Labels tensor with shape (...).
-            std: Logits std to perform scaling after margin.
+            temperature: Logits temperature to perform scaling after margin.
 
         Returns:
             Loss value with the shape depending on the reduction method.
@@ -42,15 +42,15 @@ class EXACTLoss(torch.nn.Module):
         prefix = list(labels.shape)
         num_classes = logits.shape[-1]
 
-        if (std is not None) and (not self._disable_batch_norm):
+        if (temperature is not None) and (not self._disable_batch_norm):
             logits = (logits - logits.mean()) / logits.std()  # Batch normalization.
         mean = logits_deltas(logits, labels)  # (..., C - 1).
         if self._margin is not None:
-            if std is None:
+            if temperature is None:
                 raise RuntimeError("Margin is only applicable with explicit STD paramater.")
             mean = torch.clip(mean, max=self._margin)
-        if std is not None:
-            mean = mean / std
+        if temperature is not None:
+            mean = mean * temperature
         probs = PositiveNormalProb.apply(mean, self._sample_size, self._truncate_classes)  # (...).
         if self._reduction == "mean":
             return 1 - probs.mean()

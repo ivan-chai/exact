@@ -1,8 +1,10 @@
 """Train UCI dataset classifier."""
 import argparse
 import math
+from collections import defaultdict
 from copy import deepcopy
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
@@ -40,6 +42,54 @@ def parse_arguments():
     parser.add_argument("-v", "--verbose", help="Log more data on hopt", action="store_true")
     args = parser.parse_args()
     return args
+
+
+def one_hot(labels):
+    num_classes = np.max(labels) + 1
+    result = np.zeros((len(labels), num_classes), dtype=np.bool)
+    result[np.arange(len(labels)), labels] = 1
+    return result
+
+
+def compute_metrics(scores, labels, thresholds):
+    binary_labels = one_hot(labels)
+    preds = np.argmax(scores, axis=1)
+    binary_preds = (scores > thresholds).astype(np.int)
+    return {
+        "accuracy": accuracy_score(labels, preds),
+        "f1": f1_score(binary_labels, binary_preds, average="macro"),
+        "macro_roc_auc": roc_auc_score(binary_labels, scores, average="macro"),
+        "weighted_macro_roc_auc": roc_auc_score(binary_labels, scores, average="weighted"),
+    }
+
+
+def compute_metrics_pytorch(X, y, model, thresholds):
+    with torch.no_grad():
+        scores = model(torch.tensor(X, dtype=torch.float)).cpu().numpy()
+    return compute_metrics(scores, y, thresholds)
+
+
+def compute_accuracy_pytorch(X, y, model):
+    return (model(torch.tensor(X, dtype=torch.float)).argmax(1) == torch.tensor(y)).float().mean().item()
+
+
+def get_thresholds(scores, labels):
+    num_classes = np.max(labels) + 1
+    thresholds = np.zeros(num_classes)
+    counts = np.arange(1, len(scores) + 1)  # (B).
+    for i in range(num_classes):
+        bin_labels = (labels == i).astype(np.int)
+        total_positives = bin_labels.sum()
+        if total_positives == 0:
+            continue
+        bin_scores = scores[:, i]
+        order = np.argsort(bin_scores)
+        bin_scores = bin_scores[order]  # (B).
+        bin_labels = bin_labels[order]  # (B).
+        n_positives = np.cumsum(bin_labels)  # (B).
+        accuracies = (counts - n_positives + total_positives - n_positives) / len(scores)  # (B).
+        thresholds[i] = bin_scores[np.argmax(accuracies)]
+    return thresholds
 
 
 class RepeatDataset(torch.utils.data.Dataset):
@@ -93,10 +143,6 @@ class Model(torch.nn.Linear):
         return logits
 
 
-def compute_accuracy(X, y, model):
-    return (model(torch.tensor(X, dtype=torch.float)).argmax(1) == torch.tensor(y)).float().mean().item()
-
-
 def run_pytorch(X, y, X_val, y_val, X_test, y_test, args, verbose=True):
     model = Model(X.shape[-1], max(y) + 1, normalize_weights=args.normalize_weights)
     if verbose:
@@ -138,7 +184,7 @@ def run_pytorch(X, y, X_val, y_val, X_test, y_test, args, verbose=True):
         model.train()
         criterion_kwargs = {}
         if args.method in ["exact", "exact-softmax", "beta-bernoulli", "sigmoid", "poly"]:
-            criterion_kwargs["temperature"] = args.init_std * (args.min_std / args.init_std) ** (i / args.num_epochs)
+            criterion_kwargs["temperature"] = args.init_std * (args.min_std / args.init_std) ** (-i / args.num_epochs)
         losses = []
         accuracies = []
         logits_stds = []
@@ -158,8 +204,8 @@ def run_pytorch(X, y, X_val, y_val, X_test, y_test, args, verbose=True):
         train_loss = np.mean(losses)
         grad_norm = np.mean(grad_norms)
         model.eval()
-        val_accuracy = compute_accuracy(X_val, y_val, model)
-        test_accuracy = compute_accuracy(X_test, y_test, model)
+        val_accuracy = compute_accuracy_pytorch(X_val, y_val, model)
+        test_accuracy = compute_accuracy_pytorch(X_test, y_test, model)
         if verbose:
             print("{}\tTest acc {:.5f}\tVal acc {:.5f}\tTrain acc {:.5f}\tLoss {:.5f}\tSTD {:.3f}\tLogits STD {:.3f}\tLR {:.5f}\tGRAD {:.3f}".format(
                 epoch, test_accuracy, val_accuracy, train_accuracy, train_loss,
@@ -172,14 +218,18 @@ def run_pytorch(X, y, X_val, y_val, X_test, y_test, args, verbose=True):
         print("W", model.weight.data.squeeze().numpy())
         print("B", model.bias.data.numpy())
     model.eval()
-    train_accuracy = compute_accuracy(X, y, model)
-    val_accuracy = compute_accuracy(X_val, y_val, model)
-    test_accuracy = compute_accuracy(X_test, y_test, model)
+    with torch.no_grad():
+        thresholds = get_thresholds(model(torch.tensor(X_val, dtype=torch.float)).cpu().numpy(), y_val)
+    metrics = {
+        "train": compute_metrics_pytorch(X, y, model, thresholds),
+        "val": compute_metrics_pytorch(X_val, y_val, model, thresholds),
+        "test": compute_metrics_pytorch(X_test, y_test, model, thresholds)
+    }
     if verbose:
-        print("Train accuracy", train_accuracy)
-        print("Validation accuracy", val_accuracy)
-        print("Test accuracy", test_accuracy)
-    return train_accuracy, val_accuracy, test_accuracy
+        for split, split_metrics in metrics.items():
+            for name, metric in split_metrics.items():
+                print(split, name, metric)
+    return metrics
 
 
 def run_sklearn(X, y, X_val, y_val, X_test, y_test, args, verbose=True):
@@ -188,14 +238,17 @@ def run_sklearn(X, y, X_val, y_val, X_test, y_test, args, verbose=True):
                                max_iter=100000,
                                penalty="none" if args.regularization == 0 else "l2")
     model.fit(X, y)
-    train_accuracy = (model.predict(X) == y).mean()
-    val_accuracy = (model.predict(X_val) == y_val).mean()
-    test_accuracy = (model.predict(X_test) == y_test).mean()
+    thresholds = get_thresholds(model.predict_log_proba(X_val), y_val)
+    metrics = {
+        "train": compute_metrics(model.predict_log_proba(X), y, thresholds),
+        "val": compute_metrics(model.predict_log_proba(X_val), y_val, thresholds),
+        "test": compute_metrics(model.predict_log_proba(X_test), y_test, thresholds)
+    }
     if verbose:
-        print("Train accuracy", train_accuracy)
-        print("Validation accuracy", val_accuracy)
-        print("Test accuracy", test_accuracy)
-    return train_accuracy, val_accuracy, test_accuracy
+        for split, split_metrics in metrics.items():
+            for name, metric in split_metrics.items():
+                print(split, name, metric)
+    return metrics
 
 
 def train(args, split_valset=False):
@@ -232,33 +285,31 @@ def train(args, split_valset=False):
         print("TEST", X_t.shape, y_t.shape)
 
     if args.method == "sklearn":
-        train_accuracy, val_accuracy, test_accuracy = run_sklearn(X, y, X_v, y_v, X_t, y_t, args,
-                                                                  verbose=args.verbose)
+        metrics = run_sklearn(X, y, X_v, y_v, X_t, y_t, args,
+                              verbose=args.verbose)
     else:
-        train_accuracy, val_accuracy, test_accuracy = run_pytorch(X, y, X_v, y_v, X_t, y_t, args,
-                                                                  verbose=args.verbose)
+        metrics = run_pytorch(X, y, X_v, y_v, X_t, y_t, args,
+                              verbose=args.verbose)
 
-    return train_accuracy, val_accuracy, test_accuracy
+    return metrics
 
 
 def validate(args, split_valset=False):
-    train_accs = []
-    val_accs = []
-    test_accs = []
+    by_metric = {k: defaultdict(list) for k in ["train", "val", "test"]}
     for seed in range(args.num_seeds):
         trial_args = deepcopy(args)
         trial_args.seed = seed
         trial_args.verbose = False
-        train_accuracy, val_accuracy, test_accuracy = train(trial_args, split_valset=split_valset)
-        train_accs.append(train_accuracy)
-        val_accs.append(val_accuracy)
-        test_accs.append(test_accuracy)
+        metrics = train(trial_args, split_valset=split_valset)
+        for split, split_metrics in metrics.items():
+            for name, metric in split_metrics.items():
+                by_metric[split][name].append(metric)
     if args.verbose:
         print("Seeds:", args.num_seeds)
-        print("Train accuracy: {} +- {}".format(np.mean(train_accs), np.std(train_accs)))
-        print("Val accuracy: {} +- {}".format(np.mean(val_accs), np.std(val_accs)))
-        print("Test accuracy: {} +- {}".format(np.mean(test_accs), np.std(test_accs)))
-    return np.mean(train_accs), np.mean(val_accs), np.mean(test_accs)
+        for split, split_metrics in metrics.items():
+            for name, values in split_metrics.items():
+                print(split, name, np.mean(values), "+-", np.std(values))
+    return {split: {k: np.mean(v) for k, v in split_metrics.items()} for split, split_metrics in by_metric.items()}
 
 
 def hopt(args):
@@ -288,7 +339,10 @@ def hopt(args):
         for name, value in trial_params.items():
             setattr(trial_args, name, value)
         method = validate if args.cross_validation else train
-        train_accuracy, val_accuracy, test_accuracy = method(trial_args, split_valset=True)
+        metrics = method(trial_args, split_valset=True)
+        train_accuracy = metrics["train"]["accuracy"]
+        val_accuracy = metrics["val"]["accuracy"]
+        test_accuracy = metrics["test"]["accuracy"]
         if ((val_accuracy > best_val_accuracy) or
             (abs(val_accuracy - best_val_accuracy) < EPS and (train_accuracy > best_train_accuracy))):
             best_train_accuracy = train_accuracy
