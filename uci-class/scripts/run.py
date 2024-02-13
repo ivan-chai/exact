@@ -217,6 +217,12 @@ def run_pytorch(X, y, X_val, y_val, X_test, y_test, args, verbose=True):
     if verbose:
         print("W", model.weight.data.squeeze().numpy())
         print("B", model.bias.data.numpy())
+    if model.weight.data.isnan().any() or model.bias.data.isnan().any():
+        return {
+            "train": {"accuracy": 0},
+            "val": {"accuracy": 0},
+            "test": {"accuracy": 0}
+        }
     model.eval()
     with torch.no_grad():
         thresholds = get_thresholds(model(torch.tensor(X_val, dtype=torch.float)).cpu().numpy(), y_val)
