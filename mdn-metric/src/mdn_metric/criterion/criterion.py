@@ -12,6 +12,7 @@ from .integral_pp import PositiveNormalProbPP
 from .multisim import MultiSimilarityLoss
 from .proxynca import ProxyNCALoss
 from .relaxation import Relaxed01Loss
+from .polyloss import Poly1CrossEntropyLoss
 
 
 class Criterion(torch.nn.Module):
@@ -39,6 +40,7 @@ class Criterion(torch.nn.Module):
                            prior_kld_weight=0.0, weights_prior_kld_weight=0.0,
                            pfe_weight=0.0, pfe_match_self=True, hib_weight=0.0,
                            relaxed01_weight=0.0, relaxed01_type="sigmoid",
+                           polyloss_weight=0.0, polyloss_epsilon=1.0,
                            exact_weight=0.0, exact_sample_size=64,
                            exact_robust_dims=None, exact_truncated=False,
                            exact_margin=None, exact_aggregation="mean",
@@ -69,6 +71,8 @@ class Criterion(torch.nn.Module):
             ("hib_weight", hib_weight),
             ("relaxed01_weight", relaxed01_weight),
             ("relaxed01_type", relaxed01_type),
+            ("polyloss_weight", polyloss_weight),
+            ("polyloss_epsilon", polyloss_epsilon),
             ("exact_weight", exact_weight),
             ("exact_sample_size", exact_sample_size),
             ("exact_robust_dims", exact_robust_dims),
@@ -87,6 +91,8 @@ class Criterion(torch.nn.Module):
             self._proxy_nca_loss = ProxyNCALoss()
         if self._config["relaxed01_weight"] > 0:
             self._relaxed01 = Relaxed01Loss(self._config["relaxed01_type"])
+        if self._config["polyloss_weight"] > 0:
+            self._polyloss = Poly1CrossEntropyLoss(reduction="mean", epsilon=self._config["polyloss_epsilon"])
         self.distribution = None
         self.scorer = None
 
@@ -166,6 +172,9 @@ class Criterion(torch.nn.Module):
             if logits is None:
                 raise ValueError("Need logits for ReLoss.")
             loss = loss + self._config["reloss_weight"] * self._reloss(logits, labels)
+
+        if self._config["polyloss_weight"] != 0:
+            loss = loss + self._config["polyloss_weight"] * self._polyloss(logits, labels)
         return loss
 
     def _xent_loss(self, logits, labels):
