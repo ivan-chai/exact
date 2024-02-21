@@ -54,8 +54,8 @@ def one_hot(labels):
 
 def normalize_scores(scores, replace_zero):
     with torch.no_grad():
-        scores = torch.tensor(scores)
-        if replace_zero:
+        scores = torch.tensor(scores, dtype=torch.double)
+        if replace_zero and (scores.shape[1] == 2):
             scores[:, 0] = torch.nn.functional.logsigmoid(-scores[:, 1])
             scores[:, 1] = torch.nn.functional.logsigmoid(scores[:, 1])
         else:
