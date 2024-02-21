@@ -346,6 +346,7 @@ def validate(args, split_valset=False):
             for name, metric in split_metrics.items():
                 by_metric[split][name].append(metric)
     if args.verbose:
+        print("Evaluation results for", args.dataset, args.method)
         print("Seeds:", args.num_seeds)
         for split, split_metrics in by_metric.items():
             for name, values in split_metrics.items():
