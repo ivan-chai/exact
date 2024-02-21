@@ -34,7 +34,7 @@ class EXACTLoss(torch.nn.Module):
         Args:
             logits: Logits tensor with shape (..., C).
             labels: Labels tensor with shape (...).
-            temperature: Logits temperature to perform scaling after margin.
+            temperature: Logits std to perform scaling after margin.
 
         Returns:
             Loss value with the shape depending on the reduction method.

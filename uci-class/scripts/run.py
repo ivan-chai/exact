@@ -244,7 +244,7 @@ def run_pytorch(X, y, X_val, y_val, X_test, y_test, args, verbose=True):
         val_accuracy = compute_accuracy_pytorch(X_val, y_val, model)
         test_accuracy = compute_accuracy_pytorch(X_test, y_test, model)
         if verbose:
-            print("{}\tTest acc {:.5f}\tVal acc {:.5f}\tTrain acc {:.5f}\tLoss {:.5f}\tSTD {:.3f}\tLogits STD {:.3f}\tLR {:.5f}\tGRAD {:.3f}".format(
+            print("{}\tTest acc {:.5f}\tVal acc {:.5f}\tTrain acc {:.5f}\tLoss {:.5f}\tT {:.3f}\tLogits STD {:.3f}\tLR {:.5f}\tGRAD {:.3f}".format(
                 epoch, test_accuracy, val_accuracy, train_accuracy, train_loss,
                 criterion_kwargs.get("temperature", -1),
                 np.mean(logits_stds),
