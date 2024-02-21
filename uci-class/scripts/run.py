@@ -6,6 +6,7 @@ from copy import deepcopy
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 from sklearn.model_selection import train_test_split
+from scipy.special import logsumexp
 from tqdm import tqdm
 
 import numpy as np
@@ -46,39 +47,68 @@ def parse_arguments():
 
 def one_hot(labels):
     num_classes = np.max(labels) + 1
-    result = np.zeros((len(labels), num_classes), dtype=np.bool)
+    result = np.zeros((len(labels), num_classes), dtype=bool)
     result[np.arange(len(labels)), labels] = 1
     return result
 
 
-def compute_metrics(scores, labels, thresholds):
+def normalize_scores(scores, replace_zero):
+    with torch.no_grad():
+        scores = torch.tensor(scores)
+        if replace_zero:
+            scores[:, 0] = torch.nn.functional.logsigmoid(-scores[:, 1])
+            scores[:, 1] = torch.nn.functional.logsigmoid(scores[:, 1])
+        else:
+            scores -= torch.logsumexp(scores, dim=1, keepdims=True)
+    return scores.numpy()
+
+
+def f1_score(binary_labels, scores, average):
+    if scores.shape[1] == 2:
+        return max(
+            roc_auc_score(binary_labels[:, 0], scores[:, 0]),
+            roc_auc_score(binary_labels[:, 1], scores[:, 1]),
+        )
+    return roc_auc_score(binary_labels, scores, average=average)
+
+
+def compute_metrics(scores, labels, thresholds, replace_zero=False):
+    scores = normalize_scores(scores, replace_zero)
     binary_labels = one_hot(labels)
     preds = np.argmax(scores, axis=1)
-    binary_preds = (scores > thresholds).astype(np.int)
-    return {
-        "accuracy": accuracy_score(labels, preds),
-        "f1": f1_score(binary_labels, binary_preds, average="macro"),
-        "macro_roc_auc": roc_auc_score(binary_labels, scores, average="macro"),
-        "weighted_macro_roc_auc": roc_auc_score(binary_labels, scores, average="weighted"),
-    }
+    binary_preds = (scores > thresholds).astype(int)
+    try:
+        return {
+            "accuracy": accuracy_score(labels, preds),
+            "f1": f1_score(binary_labels, binary_preds, average="macro"),
+            "macro_roc_auc": roc_auc_score(binary_labels, scores, average="macro"),
+            "weighted_macro_roc_auc": roc_auc_score(binary_labels, scores, average="weighted"),
+        }
+    except ValueError:
+        return {
+            "accuracy": accuracy_score(labels, preds),
+            "f1": f1_score(binary_labels, binary_preds, average="macro")
+        }
+
 
 
 def compute_metrics_pytorch(X, y, model, thresholds):
     with torch.no_grad():
         scores = model(torch.tensor(X, dtype=torch.float)).cpu().numpy()
-    return compute_metrics(scores, y, thresholds)
+    return compute_metrics(scores, y, thresholds, replace_zero=True)
 
 
 def compute_accuracy_pytorch(X, y, model):
     return (model(torch.tensor(X, dtype=torch.float)).argmax(1) == torch.tensor(y)).float().mean().item()
 
 
-def get_thresholds(scores, labels):
+def get_thresholds(scores, labels, replace_zero):
+    scores = normalize_scores(scores, replace_zero)
     num_classes = np.max(labels) + 1
     thresholds = np.zeros(num_classes)
     counts = np.arange(1, len(scores) + 1)  # (B).
     for i in range(num_classes):
-        bin_labels = (labels == i).astype(np.int)
+        bin_labels = (labels == i).astype(int)
         total_positives = bin_labels.sum()
         if total_positives == 0:
             continue
@@ -87,8 +117,15 @@ def get_thresholds(scores, labels):
         bin_scores = bin_scores[order]  # (B).
         bin_labels = bin_labels[order]  # (B).
         n_positives = np.cumsum(bin_labels)  # (B).
-        accuracies = (counts - n_positives + total_positives - n_positives) / len(scores)  # (B).
-        thresholds[i] = bin_scores[np.argmax(accuracies)]
+        n_negatives = counts - n_positives
+        precisions = (total_positives - n_positives) / np.maximum(len(scores) - counts, 1)
+        precisions[-1] = 1
+        recalls = (total_positives - n_positives) / total_positives
+        recalls[-1] = 0
+        f_scores = 2 * precisions * recalls / (precisions + recalls)
+#        import ipdb
+#        ipdb.set_trace()
+        thresholds[i] = bin_scores[np.argmax(f_scores)]
     return thresholds
 
 
@@ -184,7 +221,7 @@ def run_pytorch(X, y, X_val, y_val, X_test, y_test, args, verbose=True):
         model.train()
         criterion_kwargs = {}
         if args.method in ["exact", "exact-softmax", "beta-bernoulli", "sigmoid", "poly"]:
-            criterion_kwargs["temperature"] = args.init_std * (args.min_std / args.init_std) ** (-i / args.num_epochs)
+            criterion_kwargs["temperature"] = args.init_std * (args.min_std / args.init_std) ** (i / args.num_epochs)
         losses = []
         accuracies = []
         logits_stds = []
@@ -209,7 +246,7 @@ def run_pytorch(X, y, X_val, y_val, X_test, y_test, args, verbose=True):
         if verbose:
             print("{}\tTest acc {:.5f}\tVal acc {:.5f}\tTrain acc {:.5f}\tLoss {:.5f}\tSTD {:.3f}\tLogits STD {:.3f}\tLR {:.5f}\tGRAD {:.3f}".format(
                 epoch, test_accuracy, val_accuracy, train_accuracy, train_loss,
-                criterion_kwargs.get("std", -1),
+                criterion_kwargs.get("temperature", -1),
                 np.mean(logits_stds),
                 optimizer.param_groups[0]["lr"],
                 grad_norm))
@@ -225,7 +262,7 @@ def run_pytorch(X, y, X_val, y_val, X_test, y_test, args, verbose=True):
         }
     model.eval()
     with torch.no_grad():
-        thresholds = get_thresholds(model(torch.tensor(X_val, dtype=torch.float)).cpu().numpy(), y_val)
+        thresholds = get_thresholds(model(torch.tensor(X_val, dtype=torch.float)).cpu().numpy(), y_val, replace_zero=True)
     metrics = {
         "train": compute_metrics_pytorch(X, y, model, thresholds),
         "val": compute_metrics_pytorch(X_val, y_val, model, thresholds),
@@ -244,7 +281,7 @@ def run_sklearn(X, y, X_val, y_val, X_test, y_test, args, verbose=True):
                                max_iter=100000,
                                penalty="none" if args.regularization == 0 else "l2")
     model.fit(X, y)
-    thresholds = get_thresholds(model.predict_log_proba(X_val), y_val)
+    thresholds = get_thresholds(model.predict_log_proba(X_val), y_val, replace_zero=False)
     metrics = {
         "train": compute_metrics(model.predict_log_proba(X), y, thresholds),
         "val": compute_metrics(model.predict_log_proba(X_val), y_val, thresholds),
@@ -312,7 +349,7 @@ def validate(args, split_valset=False):
                 by_metric[split][name].append(metric)
     if args.verbose:
         print("Seeds:", args.num_seeds)
-        for split, split_metrics in metrics.items():
+        for split, split_metrics in by_metric.items():
             for name, values in split_metrics.items():
                 print(split, name, np.mean(values), "+-", np.std(values))
     return {split: {k: np.mean(v) for k, v in split_metrics.items()} for split, split_metrics in by_metric.items()}

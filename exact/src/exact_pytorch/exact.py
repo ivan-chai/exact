@@ -50,7 +50,7 @@ class EXACTLoss(torch.nn.Module):
                 raise RuntimeError("Margin is only applicable with explicit STD paramater.")
             mean = torch.clip(mean, max=self._margin)
         if temperature is not None:
-            mean = mean * temperature
+            mean = mean / temperature
         probs = PositiveNormalProb.apply(mean, self._sample_size, self._truncate_classes)  # (...).
         if self._reduction == "mean":
             return 1 - probs.mean()
