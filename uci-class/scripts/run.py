@@ -122,9 +122,7 @@ def get_thresholds(scores, labels, replace_zero):
         precisions[-1] = 1
         recalls = (total_positives - n_positives) / total_positives
         recalls[-1] = 0
-        f_scores = 2 * precisions * recalls / (precisions + recalls)
-#        import ipdb
-#        ipdb.set_trace()
+        f_scores = 2 * precisions * recalls / (precisions + recalls + 1e-6)
         thresholds[i] = bin_scores[np.argmax(f_scores)]
     return thresholds
 
