@@ -13,7 +13,8 @@ import numpy as np
 import random
 import torch
 
-from exact_pytorch import EXACTLoss, Relaxed01Loss, GradientNormalizer
+from exact_pytorch import EXACTLoss, Relaxed01Loss, HingeLoss, Poly1CrossEntropyLoss
+from exact_pytorch import GradientNormalizer
 from uci_class import UCI_DATASETS, split_crossval
 
 
@@ -26,7 +27,7 @@ def parse_arguments():
     parser.add_argument("--root", help="Datasets root.")
     parser.add_argument("-c", "--command", help="One of `train`, `hopt`, and `eval`", choices=["train", "train-val", "hopt", "eval"], default="train")
     parser.add_argument("--method", help="Type of the loss function.", default="exact",
-                        choices=["exact", "xent", "hinge", "beta-bernoulli", "sigmoid", "poly", "sklearn"])
+                        choices=["exact", "xent", "hinge", "beta-bernoulli", "sigmoid", "poly", "poly1", "sklearn"])
     parser.add_argument("--seed", help="Random seed.", type=int, default=0)
     parser.add_argument("--num-seeds", help="Number of random seeds for evaluation.", type=int, default=5)
     parser.add_argument("-r", "--regularization", help="Weights penalty.", type=float, default=0)
@@ -35,6 +36,7 @@ def parse_arguments():
     parser.add_argument("--batch-size", help="PyTorch training batch size.", type=int, default=256)
     parser.add_argument("-m", "--margin", help="EXACT or Hinge margin.", type=float)
     parser.add_argument("-n", "--num-epochs", help="The number of training epochs.", type=int, default=16)
+    parser.add_argument("--poly1", help="Poly1 loss epsilon.", type=float, default=2)
     parser.add_argument("--min-lr", help="The minimum value of LR at the last epoch.", type=float, default=0.0001)
     parser.add_argument("--init-std", help="Scale initial weights.", type=float, default=10)
     parser.add_argument("--min-std", help="Maximum EXACT scale.", type=float, default=0.01)
@@ -92,7 +94,8 @@ def compute_metrics_pytorch(X, y, model, thresholds):
 
 
 def compute_accuracy_pytorch(X, y, model):
-    return (model(torch.tensor(X, dtype=torch.float)).argmax(1) == torch.tensor(y)).float().mean().item()
+    with torch.no_grad():
+        return (model(torch.tensor(X, dtype=torch.float)).argmax(1) == torch.tensor(y)).float().mean().item()
 
 
 def get_thresholds(scores, labels, replace_zero):
@@ -131,27 +134,6 @@ class RepeatDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         return self._dataset[index % len(self._dataset)]
-
-
-class HingeLoss:
-    def __init__(self, margin=1):
-        self._margin = margin
-
-    def __call__(self, logits, labels):
-        """Compute Hinge loss.
-
-        Args:
-            logits: Logits tensor with shape (*, N).
-            labels: Integer labels with shape (*).
-
-        Returns:
-            Loss value.
-        """
-        n = logits.shape[-1]
-        gt_logits = logits.take_along_dim(labels.unsqueeze(-1), -1)  # (*, 1).
-        alt_mask = labels.unsqueeze(-1) != torch.arange(n, device=logits.device)  # (*, N).
-        loss = (self._margin - gt_logits + logits).clip(min=0)[alt_mask].mean()
-        return loss
 
 
 class Model(torch.nn.Linear):
@@ -203,6 +185,8 @@ def run_pytorch(X, y, X_val, y_val, X_test, y_test, args, verbose=True):
         criterion = Relaxed01Loss("sigmoid")
     elif args.method == "poly":
         criterion = Relaxed01Loss("poly")
+    elif args.method == "poly1":
+        criterion = Poly1CrossEntropyLoss(epsilon=args.poly1)
     else:
         raise ValueError(args.method)
     grad_normalizer = GradientNormalizer() if args.clip is None else (lambda p: torch.nn.utils.clip_grad_norm_(p, args.clip))
@@ -359,6 +343,8 @@ def hopt(args):
         params["lr"] = [0.01, 0.05, 0.1, 0.5, 1, 5]
     if args.method in {"exact", "hinge"}:
         params["margin"] = [None, 0, 0.1, 0.5, 1, 5, 10]
+    if args.method in {"poly1"}:
+        params["poly1"] = [0.1, 0.5, 1, 2, 4, 10]
     trials = []
     for _ in range(20):
         trial_params = {}
