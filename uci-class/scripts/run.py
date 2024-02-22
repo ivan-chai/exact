@@ -63,15 +63,6 @@ def normalize_scores(scores, replace_zero):
     return scores.numpy()
 
 
-def f1_score(binary_labels, scores, average):
-    if scores.shape[1] == 2:
-        return max(
-            roc_auc_score(binary_labels[:, 0], scores[:, 0]),
-            roc_auc_score(binary_labels[:, 1], scores[:, 1]),
-        )
-    return roc_auc_score(binary_labels, scores, average=average)
-
-
 def compute_metrics(scores, labels, thresholds, replace_zero=False):
     scores = normalize_scores(scores, replace_zero)
     binary_labels = one_hot(labels)
@@ -80,14 +71,16 @@ def compute_metrics(scores, labels, thresholds, replace_zero=False):
     try:
         return {
             "accuracy": accuracy_score(labels, preds),
-            "f1": f1_score(binary_labels, binary_preds, average="macro"),
+            "macro_f1": f1_score(binary_labels, binary_preds, average="macro"),
+            "weighted_f1": f1_score(binary_labels, binary_preds, average="weighted"),
             "macro_roc_auc": roc_auc_score(binary_labels, scores, average="macro"),
-            "weighted_macro_roc_auc": roc_auc_score(binary_labels, scores, average="weighted"),
+            "weighted_roc_auc": roc_auc_score(binary_labels, scores, average="weighted"),
         }
     except ValueError:
         return {
             "accuracy": accuracy_score(labels, preds),
-            "f1": f1_score(binary_labels, binary_preds, average="macro")
+            "macro_f1": f1_score(binary_labels, binary_preds, average="macro"),
+            "weighted_f1": f1_score(binary_labels, binary_preds, average="weighted")
         }
 
 
