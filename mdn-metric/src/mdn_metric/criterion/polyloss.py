@@ -41,4 +41,6 @@ class Poly1CrossEntropyLoss(nn.Module):
             poly1 = poly1.mean()
         elif self.reduction == "sum":
             poly1 = poly1.sum()
+        else:
+            assert self.reduction == "none"
         return poly1

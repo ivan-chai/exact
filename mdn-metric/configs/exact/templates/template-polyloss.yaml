@@ -4,4 +4,4 @@ criterion_params:
   _hopt:
     polyloss_epsilon:
       min: 0
-      max: 2
+      max: 5
