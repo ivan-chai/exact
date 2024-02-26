@@ -1,0 +1,7 @@
+criterion_params:
+  xent_weight: 0.0
+  polyloss_weight: 1.0
+  _hopt:
+    polyloss_epsilon:
+      min: 0
+      max: 5
