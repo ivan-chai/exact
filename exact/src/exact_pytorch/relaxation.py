@@ -61,7 +61,7 @@ class Relaxed01Loss(torch.nn.Module):
     def forward(self, logits, labels, temperature=None):
         deltas = logits_deltas(logits, labels)
         if temperature is not None:
-            deltas = deltas * temperature
+            deltas = deltas / temperature
         losses = self._loss(deltas).sum(-1)
         if self._reduction == "none":
             loss = losses
