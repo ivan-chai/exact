@@ -68,23 +68,19 @@ def normalize_scores(scores, replace_zero):
 def compute_metrics(scores, labels, thresholds, replace_zero=False):
     scores = normalize_scores(scores, replace_zero)
     binary_labels = one_hot(labels)
+    variate_mask = np.logical_and(
+        np.sum(binary_labels, axis=0) > 0,
+        np.sum(binary_labels, axis=0) < len(binary_labels)
+    )
     preds = np.argmax(scores, axis=1)
     binary_preds = (scores > thresholds).astype(int)
-    try:
-        return {
-            "accuracy": accuracy_score(labels, preds),
-            "macro_f1": f1_score(binary_labels, binary_preds, average="macro"),
-            "weighted_f1": f1_score(binary_labels, binary_preds, average="weighted"),
-            "macro_roc_auc": roc_auc_score(binary_labels, scores, average="macro"),
-            "weighted_roc_auc": roc_auc_score(binary_labels, scores, average="weighted"),
-        }
-    except ValueError:
-        return {
-            "accuracy": accuracy_score(labels, preds),
-            "macro_f1": f1_score(binary_labels, binary_preds, average="macro"),
-            "weighted_f1": f1_score(binary_labels, binary_preds, average="weighted")
-        }
-
+    return {
+        "accuracy": accuracy_score(labels, preds),
+        "macro_f1": f1_score(binary_labels, binary_preds, average="macro"),
+        "weighted_f1": f1_score(binary_labels, binary_preds, average="weighted"),
+        "macro_roc_auc": roc_auc_score(binary_labels[:, variate_mask], scores[:, variate_mask], average="macro"),
+        "weighted_roc_auc": roc_auc_score(binary_labels[:, variate_mask], scores[:, variate_mask], average="weighted"),
+    }
 
 
 def compute_metrics_pytorch(X, y, model, thresholds):
@@ -256,11 +252,11 @@ def run_sklearn(X, y, X_val, y_val, X_test, y_test, args, verbose=True):
                                max_iter=100000,
                                penalty="none" if args.regularization == 0 else "l2")
     model.fit(X, y)
-    thresholds = get_thresholds(model.predict_log_proba(X_val), y_val, replace_zero=False)
+    thresholds = get_thresholds(model.predict_proba(X_val), y_val, replace_zero=False)
     metrics = {
-        "train": compute_metrics(model.predict_log_proba(X), y, thresholds),
-        "val": compute_metrics(model.predict_log_proba(X_val), y_val, thresholds),
-        "test": compute_metrics(model.predict_log_proba(X_test), y_test, thresholds)
+        "train": compute_metrics(model.predict_proba(X), y, thresholds),
+        "val": compute_metrics(model.predict_proba(X_val), y_val, thresholds),
+        "test": compute_metrics(model.predict_proba(X_test), y_test, thresholds)
     }
     if verbose:
         for split, split_metrics in metrics.items():
