@@ -1,0 +1,4 @@
+criterion_params.polyloss_epsilon:
+  value: 0
+trainer_params.gradient_clipping:
+  value: 0.255326433003925
