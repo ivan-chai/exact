@@ -16,6 +16,7 @@ import torch
 from exact_pytorch import EXACTLoss, Relaxed01Loss, HingeLoss, Poly1CrossEntropyLoss
 from exact_pytorch import GradientNormalizer
 from uci_class import UCI_DATASETS, split_crossval
+from uci_class.uci import UCIDatasetBase
 
 
 EPS = 1e-6
@@ -42,6 +43,7 @@ def parse_arguments():
     parser.add_argument("--min-std", help="Maximum EXACT scale.", type=float, default=0.01)
     parser.add_argument("--normalize-weights", help="Normalize weights.", action="store_true")
     parser.add_argument("--cross-validation", help="Use cross-validation scheme.", action="store_true")
+    parser.add_argument("--label-noise", help="Label noise level.", type=float)
     parser.add_argument("-v", "--verbose", help="Log more data on hopt", action="store_true")
     args = parser.parse_args()
     return args
@@ -130,6 +132,27 @@ class RepeatDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         return self._dataset[index % len(self._dataset)]
+
+
+class UniformLabelNoiseDataset(UCIDatasetBase):
+    """
+    This wrapper introduces uniform label noise into a given fraction of a dataset.
+    It should be used on classification datasets.
+    Note: number of noised labels can be less than the requested amount.
+
+    Args:
+        dataset: Dataset to wrap.
+        noise_fraction: A proportion of dataset samples to be noised. The samples are selected randomly.
+        seed: Random seed.
+    """
+    def __init__(self, dataset, noise_fraction):
+        num_labels = dataset.y.max() + 1
+        num_noisy_samples = int(noise_fraction * len(dataset))
+
+        indices_to_noise = np.random.choice(np.arange(len(dataset)), num_noisy_samples, replace=False)
+        y = np.array(dataset.y)
+        y[indices_to_noise] = np.random.randint(0, num_labels, num_noisy_samples)
+        super().__init__(dataset.X, y)
 
 
 class Model(torch.nn.Linear):
@@ -269,6 +292,8 @@ def train(args, split_valset=False):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     dataset = UCI_DATASETS[args.dataset](args.root, split="train")
+    if args.label_noise is not None:
+        dataset = UniformLabelNoiseDataset(dataset, args.label_noise)
     X, y = dataset.X, dataset.y
     C = max(y) + 1
 
