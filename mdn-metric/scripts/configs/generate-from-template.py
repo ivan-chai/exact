@@ -13,8 +13,6 @@ from tqdm import tqdm
 
 from mdn_metric.config import update_config, as_flat_config, as_nested_config, CONFIG_HOPT
 from mdn_metric.io import read_yaml, write_yaml
-from mdn_metric.dataset import DatasetCollection
-from mdn_metric.dataset.common import DatasetWrapper
 from mdn_metric.runner import Runner
 
 
