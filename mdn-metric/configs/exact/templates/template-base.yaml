@@ -10,6 +10,7 @@ hopt_params:
 dataset_params:
   samples_per_class: null
   add_verification_testsets: false
+  validate_on_test: true
 model_params:
   embedder_params:
     pretrained: false

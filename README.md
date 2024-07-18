@@ -8,6 +8,11 @@ The short version of the paper was presented at the [TAG in Machine Learning ICM
 
 The preprint is available at [arXiv](https://arxiv.org/pdf/2205.09615.pdf).
 
+## Evaluation Results
+<img src="docs/tabular.jpg">
+
+<img src="docs/vision.jpg">
+
 ## Loss implementation
 The stand-alone implementation of the EXACT objective can be found in `exact/src/exact_pytorch/exact.py`.
 
