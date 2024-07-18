@@ -8,6 +8,8 @@ See [EXACT: How to Train Your Accuracy (2022)](https://arxiv.org/pdf/2205.09615.
 The short version of the paper was presented at the [TAG in Machine Learning
 ICML Workshop (2022)](https://icml.cc/virtual/2022/workshop/13447).
 
+🚀 The paper was published in [Pattern Recognition Letters](https://authors.elsevier.com/sd/article/S0167-8655(24)00203-4) (2024).
+
 ## Loss implementation
 The stand-alone implementation of the EXACT objective can be found in `exact/src/exact_pytorch/exact.py`.
 
