@@ -1,6 +1,6 @@
 #### ⚠️ This is an official and supported fork of the [original](https://github.com/tinkoff-ai/exact) EXACT implementation. The original repository is on freeze and will not be update further.
 # EXACT: How to Train Your Accuracy
-The official implementation of the first multi-class accuracy relaxation loss.
+The official implementation of the first multi-class accuracy relaxation loss (i.e. 0-1 loss).
 
 🚀 The paper was published in [Pattern Recognition Letters](https://authors.elsevier.com/sd/article/S0167-8655(24)00203-4) (2024). 🚀
 
